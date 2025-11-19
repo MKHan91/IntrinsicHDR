@@ -282,17 +282,17 @@ if __name__=='__main__':
     # args
     # ------------
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_imgs', type=str, required=True)
-    parser.add_argument('--output_path', type=str, required=True)
+    parser.add_argument('--test_imgs', type=str, default="/home/dev/IntrinsicHDR/Inference_test/Real")
+    parser.add_argument('--output_path', type=str, default="./inference_outputs")
     parser.add_argument('--start_id', type=int, default=0)
     parser.add_argument('--end_id', type=int, default=None)
 
     parser.add_argument('--res', type=int, default=None, help='Processing resolution.')
     parser.add_argument('--img_scale', type=float,default=1.0)
 
-    parser.add_argument('--use_exr',action="store_true")
+    parser.add_argument('--use_exr',action="store_true", default=True)
     parser.add_argument('--testing',action="store_true")
-    parser.add_argument('--subfolder_structure',action="store_true")
+    parser.add_argument('--subfolder_structure',action="store_true", default=True)
     parser.add_argument('--testset',action="store_true")
     
     args = parser.parse_args()
@@ -326,9 +326,11 @@ if __name__=='__main__':
     # get images
     if args.subfolder_structure:
         # keep subfolder structure
-        imgs = sorted(glob.glob(os.path.join(args.test_imgs,'**','*.exr')))[args.start_id:args.end_id]
+        # imgs = sorted(glob.glob(os.path.join(args.test_imgs,'**','*.exr')))[args.start_id:args.end_id]
+        imgs = sorted(glob.glob(os.path.join(args.test_imgs,'**','*.png')))[args.start_id:args.end_id]
     else:
-        imgs = sorted(glob.glob(os.path.join(args.test_imgs, '*.exr')))[args.start_id:args.end_id]
+        # imgs = sorted(glob.glob(os.path.join(args.test_imgs, '*.exr')))[args.start_id:args.end_id]
+        imgs = sorted(glob.glob(os.path.join(args.test_imgs, '*.png')))[args.start_id:args.end_id]
 
 
     # create output folder
@@ -356,7 +358,10 @@ if __name__=='__main__':
 
         # input
         ldr_in = cv2.imread(img_name,cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
-        ldr_c = (cv2.cvtColor(ldr_in,cv2.COLOR_BGR2RGB)).astype(np.float32)
+        if '.png' in fname:
+            ldr_c = (cv2.cvtColor(ldr_in,cv2.COLOR_BGR2RGB)).astype(np.float32) / 255.
+        else:
+            ldr_c = (cv2.cvtColor(ldr_in,cv2.COLOR_BGR2RGB)).astype(np.float32)
 
         # run intrinsic hdr reconstruction
         results = intrinsic_hdr(decomp_models, reconstruction_models, ldr_c)
@@ -368,7 +373,8 @@ if __name__=='__main__':
         if args.subfolder_structure:
             ref_img_out_path = fpath.replace(args.test_imgs,ref_out_path+'/')
             os.makedirs(ref_img_out_path,exist_ok=True)
-            ref_hdr_path = os.path.join(ref_img_out_path,fname.replace('.exr',ext))
+            # ref_hdr_path = os.path.join(ref_img_out_path,fname.replace('.exr',ext))
+            ref_hdr_path = os.path.join(ref_img_out_path, fname.replace('.png',ext))
         else:
             ref_hdr_path = os.path.join(ref_out_path+'/',fname.replace('.exr',ext))
         cv2.imwrite(ref_hdr_path,cv2.cvtColor(hdr_r,cv2.COLOR_RGB2BGR),[cv2.IMWRITE_EXR_COMPRESSION,1])
