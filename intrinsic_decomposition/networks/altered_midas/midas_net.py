@@ -9,11 +9,12 @@ from .base_model import BaseModel
 from .blocks import FeatureFusionBlock, Interpolate, _make_encoder
 
 
+
 class MidasNet(BaseModel):
     """Network for monocular depth estimation.
     """
 
-    def __init__(self, activation='sigmoid', path=None, features=256, input_channels=3, output_channels=1):
+    def __init__(self, activation='sigmoid', path=None, features=256, input_channels=3, output_channels=1, device='cpu'):
         """Init.
 
         Args:
@@ -29,7 +30,7 @@ class MidasNet(BaseModel):
         # use_pretrained = False if path is None else True
         use_pretrained = False
         self.out_chan = output_channels
-        self.device = 'cpu'
+        self.device = device
 
         self.pretrained, self.scratch = _make_encoder(
             backbone="resnext101_wsl", 
@@ -60,7 +61,8 @@ class MidasNet(BaseModel):
         )
 
         if path:
-            self.load(path)
+            self.load(path, self.device)
+
 
     def forward(self, x):
         """Forward pass.
@@ -93,3 +95,4 @@ class MidasNet(BaseModel):
             return torch.squeeze(out, dim=1)
         else:
             return out
+

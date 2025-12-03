@@ -196,5 +196,8 @@ __pycache__/
 *.mp4
 *.mov
 
-Inference_outputs
-Inference_test
+inference_outputs
+inference_images
+images
+deq_lin_outputs
+/baselines/SingleHDR/Liu_ckpt

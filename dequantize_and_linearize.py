@@ -96,8 +96,8 @@ def dequantize_and_linearize(ldr_img, sess, graph, ldr, is_training):
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_imgs', type=str, default="/home/dev/IntrinsicHDR/Inference_test/Real")
-    parser.add_argument('--output_path', type=str, default="/home/dev/IntrinsicHDR/Inference_outputs")
+    parser.add_argument('--test_imgs', type=str, default="/home/dev/IntrinsicHDR/inference_images/GenAI")
+    parser.add_argument('--output_path', type=str, default="/home/dev/IntrinsicHDR/deq_lin_outputs")
     parser.add_argument('--root', type=str, default=".")
     parser.add_argument('--start_id',type=int, default=0)
     parser.add_argument('--end_id',type=int, default=None)
@@ -117,7 +117,8 @@ if __name__=='__main__':
     _ = lin_graph(dummy_input, dummy_training)
 
     print('Loading checkpoints...')
-    checkpoint_path = args.root + '/baselines/SingleHDR/checkpoints/model.ckpt'
+    # checkpoint_path = args.root + '/baselines/SingleHDR/checkpoints/model.ckpt'
+    checkpoint_path = args.root + '/baselines/SingleHDR/Liu_ckpt/model.ckpt'
     
     dequant_vars = [v for v in tf.compat.v1.trainable_variables() if 'Dequantization_Net' in v.name]
     if dequant_vars:
@@ -143,13 +144,14 @@ if __name__=='__main__':
     ldr = None
     is_training = None
 
-    for d, ldr_img_path in tqdm(enumerate(ldr_imgs),initial=args.start_id):
-        print("Processing image "+ldr_img_path)
-
+    for d, ldr_img_path in tqdm(enumerate(ldr_imgs), initial=args.start_id):
+        ldr_img_name = osp.split(ldr_img_path)[-1][:-4]
+        print(f"Processing image: {ldr_img_name}")
+        # if ldr_img_name != "06327": continue
+        
         ldr_dir = osp.dirname(ldr_img_path)
         target_dir = "/".join(ldr_dir.rsplit('/', 2)[1:])
-        
-        os.makedirs(osp.join(args.output_path, target_dir),exist_ok=True)
+        os.makedirs(osp.join(args.output_path, target_dir), exist_ok=True)
         
         # load img and preprocess
         ldr_img = cv2.imread(ldr_img_path)
@@ -159,6 +161,8 @@ if __name__=='__main__':
         linear_img = dequantize_and_linearize(ldr_img, sess, lin_graph, ldr, is_training)
 
         # save linear image
-        cv2.imwrite(osp.join(args.output_path, target_dir, osp.split(ldr_img_path)[-1][:-3]+'exr'), cv2.cvtColor(linear_img,cv2.COLOR_RGB2BGR),[cv2.IMWRITE_EXR_COMPRESSION,1])
+        cv2.imwrite(osp.join(args.output_path, target_dir, ldr_img_name+'.exr'), 
+                    cv2.cvtColor(linear_img,cv2.COLOR_RGB2BGR),
+                    [cv2.IMWRITE_EXR_COMPRESSION,1])
 
     print('Finished!')

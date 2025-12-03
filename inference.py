@@ -2,6 +2,7 @@ import torch
 
 import argparse
 import os
+import os.path as osp
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import glob
 import cv2
@@ -18,7 +19,6 @@ from src.decomposition_utils import decompose_torch, get_quantile
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(DEVICE)
-
 
 def blend_imgs(ldr,hdr,mask):
     """
@@ -53,7 +53,7 @@ def blend_imgs(ldr,hdr,mask):
     return blended
 
 
-
+# region - load recon models
 def load_reconstruction_models(device,model_root = 'https://github.com/compphoto/IntrinsicHDR/releases/download/v1.0/'):
     """
     Load reconstruction models
@@ -75,7 +75,7 @@ def load_reconstruction_models(device,model_root = 'https://github.com/compphoto
                         )
 
     ## uncomment for offline working
-    # ckpt = os.path.join(model_root,'checkpoints/shading','sh_weights.ckpt')
+    # ckpt = osp.join(model_root,'checkpoints/shading','sh_weights.ckpt')
     
     ## comment for offline working
     ckpt = model_root + 'sh_weights.ckpt'
@@ -93,7 +93,7 @@ def load_reconstruction_models(device,model_root = 'https://github.com/compphoto
                         mode='albedo',
                         )
     ## uncomment for offline working
-    # ckpt = os.path.join(model_root,'checkpoints/albedo','alb_weights.ckpt')
+    # ckpt = osp.join(model_root,'checkpoints/albedo','alb_weights.ckpt')
 
     ## comment for offline working
     ckpt = model_root + 'alb_weights.ckpt' 
@@ -108,7 +108,7 @@ def load_reconstruction_models(device,model_root = 'https://github.com/compphoto
     ref_model = LitRefiner()
 
     ## uncomment for offline working
-    # ckpt = os.path.join(model_root,'checkpoints/refinement','ref_weights.ckpt') 
+    # ckpt = osp.join(model_root,'checkpoints/refinement','ref_weights.ckpt') 
     # checkpoint = torch.load(ckpt)
 
     ## comment for offline working
@@ -124,6 +124,7 @@ def load_reconstruction_models(device,model_root = 'https://github.com/compphoto
     return sh_model,alb_model,ref_model
 
 
+# region - hdr recon
 def hdr_reconstruction(reconstruction_networks,albedo_raw,inv_shading_raw,ldr_t,proc_scale=1.0):
     """
     Reconstruct HDR image from intrinsic components
@@ -191,6 +192,7 @@ def hdr_reconstruction(reconstruction_networks,albedo_raw,inv_shading_raw,ldr_t,
     return rgb_hdr, albedo_hdr, inv_sh_hdr, albedo, inv_shading, mask
 
 
+# region - intrinsic_hdr
 def intrinsic_hdr(decomp_models, 
                   reconstruction_networks, 
                   ldr_c, 
@@ -247,7 +249,12 @@ def intrinsic_hdr(decomp_models,
 
     # resize intrinsic components
     alb_hdr = cv2.resize(rec_results[1],(w_in,h_in))
+    
+    # eps = 1e-4
+    # inv_sh = np.clip(rec_results[2], eps, 10.0)   # 아래로 너무 떨어지지 않도록
+    # shading_hdr = 1.0 / inv_sh
     shading_hdr = (1.0/rec_results[2]-1.0)
+    
     shading_hdr = cv2.resize(shading_hdr,(w_in,h_in))
 
     alb_raw = pred_albedo_raw.squeeze().permute(1,2,0).cpu().numpy()
@@ -282,8 +289,8 @@ if __name__=='__main__':
     # args
     # ------------
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_imgs', type=str, default="/home/dev/IntrinsicHDR/Inference_test/Real")
-    parser.add_argument('--output_path', type=str, default="./inference_outputs")
+    parser.add_argument('--test_imgs', type=str, default="/home/dev/IntrinsicHDR/deq_lin_outputs/GenAI")
+    parser.add_argument('--output_path', type=str, default="/home/dev/IntrinsicHDR/inference_outputs/GenAI")
     parser.add_argument('--start_id', type=int, default=0)
     parser.add_argument('--end_id', type=int, default=None)
 
@@ -297,13 +304,12 @@ if __name__=='__main__':
     
     args = parser.parse_args()
 
-
     # ------------
     # decomposition models
     # ------------
     decomp_models = load_models(
-            ord_path='vivid_bird_318_300.pt',
-            mrg_path='fluent_eon_138_200.pt',
+            ord_path='/home/dev/IntrinsicHDR/inference_models/vivid_bird_318_300.pt',
+            mrg_path='/home/dev/IntrinsicHDR/inference_models/fluent_eon_138_200.pt',
             device = DEVICE
         )
     print('Decomposition models loaded ...')
@@ -326,21 +332,21 @@ if __name__=='__main__':
     # get images
     if args.subfolder_structure:
         # keep subfolder structure
-        # imgs = sorted(glob.glob(os.path.join(args.test_imgs,'**','*.exr')))[args.start_id:args.end_id]
-        imgs = sorted(glob.glob(os.path.join(args.test_imgs,'**','*.png')))[args.start_id:args.end_id]
+        imgs = sorted(glob.glob(osp.join(args.test_imgs,'**','*.exr')))[args.start_id:args.end_id]
+        # imgs = sorted(glob.glob(osp.join(args.test_imgs,'**','*.png')))[args.start_id:args.end_id]
     else:
-        # imgs = sorted(glob.glob(os.path.join(args.test_imgs, '*.exr')))[args.start_id:args.end_id]
-        imgs = sorted(glob.glob(os.path.join(args.test_imgs, '*.png')))[args.start_id:args.end_id]
+        imgs = sorted(glob.glob(osp.join(args.test_imgs, '*.exr')))[args.start_id:args.end_id]
+        # imgs = sorted(glob.glob(osp.join(args.test_imgs, '*.png')))[args.start_id:args.end_id]
 
 
     # create output folder
-    run_name = 'predictions'
-    out_path = os.path.join(args.output_path,run_name)
-    os.makedirs(out_path,exist_ok=True)
+    # run_name = 'predictions/GT'
+    # out_path = osp.join(args.output_path,run_name)
+    os.makedirs(args.output_path, exist_ok=True)
 
     # create subfolder for refined images
-    ref_out_path = out_path 
-    os.makedirs(ref_out_path,exist_ok=True)
+    # ref_out_path = out_path 
+    # os.makedirs(args.output_path, exist_ok=True)
 
     # define output file type
     if args.use_exr:
@@ -353,31 +359,41 @@ if __name__=='__main__':
     # inference
     # ------------
     for img_name in tqdm(imgs):
-        fpath,fname = os.path.split(img_name)
+        fpath, fname = osp.split(img_name)
         print(f'Processing img {fname} ...')
 
+        # if fname != "06370.exr":continue
+        
         # input
-        ldr_in = cv2.imread(img_name,cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
+        ldr_in = cv2.imread(img_name, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_ANYCOLOR)
         if '.png' in fname:
             ldr_c = (cv2.cvtColor(ldr_in,cv2.COLOR_BGR2RGB)).astype(np.float32) / 255.
         else:
             ldr_c = (cv2.cvtColor(ldr_in,cv2.COLOR_BGR2RGB)).astype(np.float32)
 
         # run intrinsic hdr reconstruction
-        results = intrinsic_hdr(decomp_models, reconstruction_models, ldr_c)
+        results = intrinsic_hdr(decomp_models, reconstruction_models, ldr_c, 
+                                max_res=4096,
+                                decomp_res=None, 
+                                proc_scale=1.0)
 
         # unpack results
         hdr_r = results['rgb_hdr']
 
         # save refined hdr image
-        if args.subfolder_structure:
-            ref_img_out_path = fpath.replace(args.test_imgs,ref_out_path+'/')
-            os.makedirs(ref_img_out_path,exist_ok=True)
-            # ref_hdr_path = os.path.join(ref_img_out_path,fname.replace('.exr',ext))
-            ref_hdr_path = os.path.join(ref_img_out_path, fname.replace('.png',ext))
-        else:
-            ref_hdr_path = os.path.join(ref_out_path+'/',fname.replace('.exr',ext))
-        cv2.imwrite(ref_hdr_path,cv2.cvtColor(hdr_r,cv2.COLOR_RGB2BGR),[cv2.IMWRITE_EXR_COMPRESSION,1])
+        # if args.subfolder_structure:
+        #     # ref_img_out_path = fpath.replace(args.test_imgs,ref_out_path+'/')
+        #     # ref_img_out_path = fpath.replace(args.test_imgs + '/')
+        #     # os.makedirs(ref_img_out_path, exist_ok=True)
+        #     # ref_hdr_path = osp.join(ref_img_out_path, fname.replace('.exr', ext))
+        #     ref_hdr_path = osp.join(args.output_path, fname.replace('.exr', ext))
+        # else:
+        #     # ref_hdr_path = osp.join(ref_out_path+'/',fname.replace('.exr',ext))
+        ref_hdr_path = osp.join(args.output_path, fname.replace('.exr', ext))
+            
+        cv2.imwrite(ref_hdr_path, 
+                    cv2.cvtColor(hdr_r, cv2.COLOR_RGB2BGR),
+                    [cv2.IMWRITE_EXR_COMPRESSION,1])
 
 
     print("Finished!")
